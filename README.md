@@ -13,6 +13,15 @@ This utility calculates and executes a rack alternating broker assignment while 
 # Run
 > java -jar target/kafka-alter-rf-0.0.1-SNAPSHOT.jar -b localhost:9092 -t testTopic -r 2 -c <client config file>
 
-If you have no security on your cluster you can just run it with the bootstrap server, topic, and new replication factor.
+If you have no security on your cluster you can just run it with the bootstrap server, topic, and new replication factor. If it is a secure cluster, create a client.properties file like the example below and modify the properties based on your security mechanisms (this will support mTLS too if you provide all the ssl.* properties):
+
+```
+security.protocol=SASL_PLAINTEXT
+sasl.mechanism=PLAIN
+bootstrap.servers=kafka1:9091
+sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required \
+  username="admin" \
+  password="admin-secret";
+```
 
 
