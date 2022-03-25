@@ -10,8 +10,29 @@ This utility calculates and executes a rack alternating broker assignment while 
 > mvn clean install -DskipTests=true
 ``` 
 
+# Usage
+
+```
+Usage: kafka-alter-rf [-hV] [-b=<bootstrapServers>] [-c=<commandConfigFile>]
+                      -r=<replicationFactor> -t=<topic>
+A simply utility to alter the replication factor of a topic
+  -b, --bootstrap-server=<bootstrapServers>
+                        List of Kafka Bootstrap servers
+                          Default: localhost:9092
+  -c, --command-config=<commandConfigFile>
+                        Config file containing properties like security
+                          credentials, etc
+                          Default:
+  -h, --help            Show this help message and exit.
+  -r, --replication-factor=<replicationFactor>
+                        New replication factor
+  -t, --topic=<topic>   Topic to alter replication factor on
+  -V, --version         Print version information and exit.
+```
+
+
 # Run
-> java -jar target/kafka-alter-rf-0.0.1-SNAPSHOT.jar -b localhost:9092 -t testTopic -r 2 -c <client config file>
+> ./bin/kafka-alter-rf -b localhost:9092 -t testTopic -r 2 -c <client config file>
 
 If you have no security on your cluster you can just run it with the bootstrap server, topic, and new replication factor. If it is a secure cluster, create a client.properties file like the example below and modify the properties based on your security mechanisms (this will support mTLS too if you provide all the ssl.* properties):
 
