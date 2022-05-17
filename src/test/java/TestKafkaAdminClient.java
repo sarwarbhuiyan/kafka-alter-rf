@@ -17,7 +17,6 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.TopicConfig;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 public class TestKafkaAdminClient {
 
@@ -26,10 +25,10 @@ public class TestKafkaAdminClient {
     @Before
     public void setup() {
         Map<String, Object> conf = new HashMap<>();
-        conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka1:9092");
         conf.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
         client = AdminClient.create(conf);
-
+        
     }
 
     @After
@@ -37,7 +36,8 @@ public class TestKafkaAdminClient {
         client.close();
     }
 
-    @Test
+    
+    //@Test
     public void testNames() throws InterruptedException, ExecutionException {
         ListTopicsResult ltr = client.listTopics();
         KafkaFuture<Set<String>> names = ltr.names();
@@ -72,7 +72,7 @@ public class TestKafkaAdminClient {
         }
     }
 
-    @Test
+    //@Test
     public void testChangeProperties() throws InterruptedException, ExecutionException {
         ConfigResource resource = new ConfigResource(ConfigResource.Type.TOPIC, "tweet");
 

@@ -1,7 +1,9 @@
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -13,6 +15,8 @@ import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Help.Visibility;
@@ -43,6 +47,17 @@ public class AlterReplicationFactor implements Runnable {
   @Option(required = true, names = {"-r", "--replication-factor"},
       description = "New replication factor")
   private Integer replicationFactor = 1;
+  
+  
+  @Option(required = false, names = {"-e", "--execute"},
+      description = "Execute the plan")
+  private boolean execute  = false;
+  
+  @Option(required = false, names = {"-f", "--file"},
+      description = "File to export reassignment json to")
+  private String file  = "";
+  
+  
 
   @Spec
   CommandSpec spec;
@@ -172,8 +187,28 @@ public class AlterReplicationFactor implements Runnable {
       Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments =
           reassignmentStrategy.reassignments();
 
+      
       // execute reassignment
-      client.alterPartitionReassignments(reassignments).all().get();
+      if(execute) {
+        client.alterPartitionReassignments(reassignments).all().get();
+        System.out
+        .println("Replication factor for topic " + topic + " updated to " + replicationFactor);
+      }
+      else {
+        String output = formatReassignmentJson(reassignments);
+        // if the user specified a file parameter
+        if(file != null && !file.isEmpty()) {
+          byte[] strToBytes = output.getBytes();
+          
+          try(FileOutputStream outputStream = new FileOutputStream(file)) {
+            outputStream.write(strToBytes);
+            System.out.println("Written reassignment plan to "+file+ " successfully");
+          } catch (Exception e) {
+            e.printStackTrace();
+          }
+          
+        }
+      }
 
     } catch(CommandLine.ParameterException p) {
       throw p;
@@ -182,12 +217,49 @@ public class AlterReplicationFactor implements Runnable {
           "A fatal exception has occurred. ");
 
     }
-    System.out
-        .println("Replication factor for topic " + topic + " updated to " + replicationFactor);
+    
 
 
   }
 
+
+  private String formatReassignmentJson(
+      Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments) {
+    ObjectMapper mapper = new ObjectMapper();
+    
+
+    try {
+      Map<String, Object> reassignmentsMap = new HashMap<String, Object>();
+      reassignmentsMap.put("version", 1);
+      
+      //TreeSet<TopicPartition> sortedKeys = new TreeSet<>(reassignments.keySet());
+
+      List<Map<String, Object>> partitions = reassignments.keySet()
+          .stream()
+            .sorted((a, b) -> a.partition() - b.partition())
+          .map(tp -> {
+        List<Integer> replicas = reassignments.get(tp).get().targetReplicas();
+        return new HashMap<String, Object>()
+        {{
+             put("topic", tp.topic());
+             put("log_dirs", replicas.stream().map(r -> "any").collect(Collectors.toList()));
+             put("partition", tp.partition());
+             put("replicas", replicas);
+        }};
+      }).collect(Collectors.toList());
+      
+      
+      reassignmentsMap.put("partitions", partitions);
+      
+      String reassignmentsMapJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(reassignmentsMap);
+      return reassignmentsMapJson;
+    } catch (JsonProcessingException e) {
+      System.out.println("Error occurred converting plan to JSON:\n\n");
+      e.printStackTrace();
+    }
+    return null;
+    
+  }
 
   public static void main(String... args) {
 

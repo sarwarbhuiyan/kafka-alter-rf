@@ -13,8 +13,8 @@ This utility calculates and executes a rack alternating broker assignment while 
 # Usage
 
 ```
-Usage: kafka-alter-rf [-hV] [-b=<bootstrapServers>] [-c=<commandConfigFile>]
-                      -r=<replicationFactor> -t=<topic>
+Usage: kafka-alter-rf [-ehV] [-b=<bootstrapServers>] [-c=<commandConfigFile>]
+                      [-f=<file>] -r=<replicationFactor> -t=<topic>
 A simply utility to alter the replication factor of a topic
   -b, --bootstrap-server=<bootstrapServers>
                         List of Kafka Bootstrap servers
@@ -23,6 +23,8 @@ A simply utility to alter the replication factor of a topic
                         Config file containing properties like security
                           credentials, etc
                           Default:
+  -e, --execute         Execute the plan
+  -f, --file=<file>     File to export reassignment json to
   -h, --help            Show this help message and exit.
   -r, --replication-factor=<replicationFactor>
                         New replication factor
