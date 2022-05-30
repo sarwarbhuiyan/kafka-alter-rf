@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -91,7 +92,7 @@ public class AlterReplicationFactor implements Runnable {
     for (int i = position; i < take + position; i++) {
       output.add(input.get(i % input.size()));
     }
-    System.out.println(output);
+    //System.out.println(output);
     return output;
   }
 
@@ -118,26 +119,35 @@ public class AlterReplicationFactor implements Runnable {
     // private final Queue<List<Integer>> permutations;
     private List<Integer> rackAlternatingNodes;
     private int replicationFactor;
+    private Random rand; 
 
     public RoundRobinAcrossRacksStrategy(String topic, Collection<Node> brokers,
         List<TopicPartitionInfo> currentPartitions, int replicationFactor) {
       this.currentPartitions = currentPartitions;
       this.topic = topic;
       this.replicationFactor = replicationFactor;
+      this.rand = new Random();
+      
       List<List<Node>> splitByRackNodes =
-          brokers.stream().collect(Collectors.groupingBy(n -> n.rack())).values().stream()
+          brokers.stream().collect(Collectors.groupingBy(n -> (n.rack()!=null && n.rack().length() > 0) ? n.rack() : "")).values().stream()
               .collect(Collectors.toList());
 
       this.rackAlternatingNodes =
           interleave(splitByRackNodes).stream().map(n -> n.id()).collect(Collectors.toList());
+      
     }
 
     @Override
     public Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments() {
+      
+      // rotate randomly
+      List<Integer> randomlyRotatedNodes = rotation(rackAlternatingNodes, rand.nextInt(rackAlternatingNodes.size()), replicationFactor);
+      //List<Integer> randomlyRotatedNodes = rackAlternatingNodes;
+      
       return currentPartitions.stream()
           .collect(Collectors.toMap(tp -> new TopicPartition(topic, tp.partition()),
               tp -> Optional.of(new NewPartitionReassignment(
-                  rotation(rackAlternatingNodes, tp.partition(), replicationFactor)))));
+                  rotation(randomlyRotatedNodes, tp.partition(), replicationFactor)))));
     }
 
 
@@ -170,12 +180,16 @@ public class AlterReplicationFactor implements Runnable {
             "Replication factor cannot exceed the number of brokers present");
       }
       
+      if(currentPartitions.get(0).replicas().size() == replicationFactor) {
+        throw new CommandLine.ParameterException(spec.commandLine(),
+            "Replication factor is already "+replicationFactor);
+      }
+      
       System.out.println("Current Assignments:");
       for (TopicPartitionInfo tpi : currentPartitions) {
         System.out.println(tpi.replicas().stream().map(r -> r.id()).collect(Collectors.toList()));
 
       }
-      
       
 
       
@@ -186,15 +200,21 @@ public class AlterReplicationFactor implements Runnable {
       System.out.println("Reassignments:");
       Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments =
           reassignmentStrategy.reassignments();
-
+      for(TopicPartition tp: reassignments.keySet()) {
+        System.out.println(reassignments.get(tp).get().targetReplicas());
+      }
+      
+      //System.out.println(formatReassignmentJson(reassignments));
       
       // execute reassignment
       if(execute) {
         client.alterPartitionReassignments(reassignments).all().get();
         System.out
         .println("Replication factor for topic " + topic + " updated to " + replicationFactor);
-      }
+      } 
       else {
+        System.out.println("The above assignment is only a proposed assignment. Use --execute to execute the assignment");
+        
         String output = formatReassignmentJson(reassignments);
         // if the user specified a file parameter
         if(file != null && !file.isEmpty()) {
