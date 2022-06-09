@@ -54,6 +54,10 @@ public class AlterReplicationFactor implements Runnable {
       description = "Execute the plan")
   private boolean execute  = false;
   
+  @Option(required = false, names = {"-fr", "--force"},
+      description = "Force reassignment even if the replication factor is met")
+  private boolean forceReassignment = false;
+  
   @Option(required = false, names = {"-f", "--file"},
       description = "File to export reassignment json to")
   private String file  = "";
@@ -182,7 +186,7 @@ public class AlterReplicationFactor implements Runnable {
             "Replication factor cannot exceed the number of brokers present");
       }
       
-      if(currentPartitions.get(0).replicas().size() == replicationFactor) {
+      if(currentPartitions.get(0).replicas().size() == replicationFactor && !forceReassignment) {
         throw new CommandLine.ParameterException(spec.commandLine(),
             "Replication factor is already "+replicationFactor);
       }
