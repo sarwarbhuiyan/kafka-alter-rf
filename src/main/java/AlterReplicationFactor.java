@@ -92,7 +92,7 @@ public class AlterReplicationFactor implements Runnable {
     for (int i = position; i < take + position; i++) {
       output.add(input.get(i % input.size()));
     }
-    //System.out.println(output);
+    //System.out.println("Rotation"+output);
     return output;
   }
 
@@ -131,17 +131,19 @@ public class AlterReplicationFactor implements Runnable {
       List<List<Node>> splitByRackNodes =
           brokers.stream().collect(Collectors.groupingBy(n -> (n.rack()!=null && n.rack().length() > 0) ? n.rack() : "")).values().stream()
               .collect(Collectors.toList());
+      //System.out.println("SplitByNodes: "+splitByRackNodes);
 
       this.rackAlternatingNodes =
           interleave(splitByRackNodes).stream().map(n -> n.id()).collect(Collectors.toList());
       
+      //System.out.println("RackAlternatingNodes: "+rackAlternatingNodes);
     }
 
     @Override
     public Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments() {
       
       // rotate randomly
-      List<Integer> randomlyRotatedNodes = rotation(rackAlternatingNodes, rand.nextInt(rackAlternatingNodes.size()), replicationFactor);
+      List<Integer> randomlyRotatedNodes = rotation(rackAlternatingNodes, rand.nextInt(rackAlternatingNodes.size()), rackAlternatingNodes.size());
       //List<Integer> randomlyRotatedNodes = rackAlternatingNodes;
       
       return currentPartitions.stream()
