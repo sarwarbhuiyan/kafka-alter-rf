@@ -46,5 +46,11 @@ sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule require
   username="admin" \
   password="admin-secret";
 ```
+# Assigning all the leaders to one rack
+
+If there is a situation where all the leaders need to be assigned on one rack and the followers to the other racks, this can be done with the addition --preferred-rack (or -pr for short)
+
+> ./bin/kafka-alter-rf -b localhost:9092 -t testTopic -r 2 -c <client config file> --preferred-rack us-west-1a
+
 
 

@@ -11,6 +11,7 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.common.Node;
@@ -62,7 +63,9 @@ public class AlterReplicationFactor implements Runnable {
       description = "File to export reassignment json to")
   private String file  = "";
   
-  
+  @Option(required = false, names = {"-pr", "--preferred-rack"},
+      description = "Preferred rack for leaders")
+  private String preferredRack  = null;
 
   @Spec
   CommandSpec spec;
@@ -118,12 +121,12 @@ public class AlterReplicationFactor implements Runnable {
    *
    */
   public static class RoundRobinAcrossRacksStrategy implements ReassignmentStrategy {
-    private final String topic;
-    private final List<TopicPartitionInfo> currentPartitions;
+    protected final String topic;
+    protected final List<TopicPartitionInfo> currentPartitions;
     // private final Queue<List<Integer>> permutations;
-    private List<Integer> rackAlternatingNodes;
-    private int replicationFactor;
-    private Random rand; 
+    protected List<Integer> rackAlternatingNodes;
+    protected int replicationFactor;
+    protected Random rand; 
 
     public RoundRobinAcrossRacksStrategy(String topic, Collection<Node> brokers,
         List<TopicPartitionInfo> currentPartitions, int replicationFactor) {
@@ -157,6 +160,56 @@ public class AlterReplicationFactor implements Runnable {
     }
 
 
+  }
+  
+  
+  public static class PreferredRackRoundRobinAcrossArackStrategy extends RoundRobinAcrossRacksStrategy {
+  
+    protected String preferredRack = "";
+    
+    protected Map<String, List<Integer>> splitByRackNodes;
+    
+    protected List<Integer> preferredRackAlternatingNodes; //leaders chosen from this list always;
+    
+    protected List<Integer> remainingRackAlternativeNodes; //followers chosen from this list always;
+        
+    public PreferredRackRoundRobinAcrossArackStrategy(String topic, Collection<Node> brokers, List<TopicPartitionInfo> currentPartitions, int replicationFactor, String preferredRack)  {
+      super(topic, brokers, currentPartitions, replicationFactor);
+      this.preferredRack = preferredRack;
+      
+      this.splitByRackNodes =  brokers.stream()
+                                 .collect(Collectors.groupingBy(
+                                      n -> (n.rack()!=null && n.rack().length() > 0) ? n.rack() : "", 
+                                          Collectors.mapping(n -> n.id(), Collectors.toList()
+                                              )
+                                          ));
+      
+      this.preferredRackAlternatingNodes = this.splitByRackNodes.get(preferredRack);
+      
+      this.remainingRackAlternativeNodes = this.splitByRackNodes.entrySet().stream()
+                                               .filter(i -> !i.getKey().equals(preferredRack))
+                                               .flatMap(e -> e.getValue().stream().map(s -> s)).collect(Collectors.toList());
+    }
+    
+    @Override
+    public Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments() {
+      // rotate randomly the leader
+      List<Integer> randomlyRotatedLeaderNodes = rotation(preferredRackAlternatingNodes, rand.nextInt(preferredRackAlternatingNodes.size()), preferredRackAlternatingNodes.size());
+      List<Integer> randomlyRotatedFollowerNodes = rotation(remainingRackAlternativeNodes, rand.nextInt(remainingRackAlternativeNodes.size()), remainingRackAlternativeNodes.size());
+      
+      
+      return currentPartitions.stream()
+          .collect(Collectors.toMap(tp -> new TopicPartition(topic, tp.partition()),
+              tp -> Optional.of(new NewPartitionReassignment(
+                  Stream.of(
+                  rotation(randomlyRotatedLeaderNodes, tp.partition(), 1),
+                  rotation(randomlyRotatedFollowerNodes, tp.partition(), replicationFactor - 1)
+                  ).flatMap(Collection::stream).collect(Collectors.toList())
+                  
+                      ))));
+      
+      
+    }
   }
 
   @Override
@@ -202,7 +255,10 @@ public class AlterReplicationFactor implements Runnable {
 
       ReassignmentStrategy reassignmentStrategy =
           new RoundRobinAcrossRacksStrategy(topic, brokers, currentPartitions, replicationFactor);
-
+      
+      if(preferredRack!=null)
+        reassignmentStrategy = new PreferredRackRoundRobinAcrossArackStrategy(topic, brokers, currentPartitions, replicationFactor, preferredRack);
+      
       System.out.println("Reassignments:");
       Map<TopicPartition, Optional<NewPartitionReassignment>> reassignments =
           reassignmentStrategy.reassignments();
