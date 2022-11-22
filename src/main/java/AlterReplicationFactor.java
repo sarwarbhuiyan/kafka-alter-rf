@@ -202,8 +202,8 @@ public class AlterReplicationFactor implements Runnable {
           .collect(Collectors.toMap(tp -> new TopicPartition(topic, tp.partition()),
               tp -> Optional.of(new NewPartitionReassignment(
                   Stream.of(
-                  rotation(randomlyRotatedLeaderNodes, tp.partition(), 1),
-                  rotation(randomlyRotatedFollowerNodes, tp.partition(), replicationFactor - 1)
+                  rotation(randomlyRotatedLeaderNodes, tp.partition(), randomlyRotatedLeaderNodes.size()),
+                  rotation(randomlyRotatedFollowerNodes, tp.partition(), replicationFactor - randomlyRotatedLeaderNodes.size())
                   ).flatMap(Collection::stream).collect(Collectors.toList())
                   
                       ))));
@@ -295,6 +295,7 @@ public class AlterReplicationFactor implements Runnable {
     } catch(CommandLine.ParameterException p) {
       throw p;
     } catch (Exception e) {
+      e.printStackTrace();
       throw new CommandLine.ParameterException(spec.commandLine(),
           "A fatal exception has occurred. ");
 
