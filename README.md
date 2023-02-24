@@ -25,7 +25,10 @@ A simply utility to alter the replication factor of a topic
                           Default:
   -e, --execute         Execute the plan
   -f, --file=<file>     File to export reassignment json to
+  -fr, --force      Force reassignment even if the replication factor is met
   -h, --help            Show this help message and exit.
+  -pr, --preferred-rack=<preferredRack>
+                        Preferred rack for leaders
   -r, --replication-factor=<replicationFactor>
                         New replication factor
   -t, --topic=<topic>   Topic to alter replication factor on
@@ -49,8 +52,9 @@ sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule require
 # Assigning all the leaders to one rack
 
 If there is a situation where all the leaders need to be assigned on one rack and the followers to the other racks, this can be done with the addition --preferred-rack (or -pr for short)
+(this works for both MRC topics as well as regular topics without a replication factor set)
 
-> ./bin/kafka-alter-rf -b localhost:9092 -t testTopic -r 2 -c <client config file> --preferred-rack us-west-1a
+> ./bin/kafka-alter-rf -b localhost:9092 -t testTopic  -c <client config file> --preferred-rack us-west-1a
 
 
 
